@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Медленное озеро</title>
+  <style>
+    /* ── Сброс и базовые стили ── */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0a1628;
+      touch-action: none; /* отключаем прокрутку при касании */
+    }
+
+    /* ── Контейнер игры ── */
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #lake {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Верхняя панель UI ── */
+    #ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #title {
+      font-size: clamp(1.1rem, 4vw, 1.6rem);
+      font-weight: 300;
+      color: #a8d8ea;
+      letter-spacing: 0.15em;
+      text-shadow: 0 0 20px rgba(100, 200, 220, 0.4);
+    }
+
+    #counter {
+      font-size: clamp(0.85rem, 3vw, 1rem);
+      color: #6ec6d9;
+      opacity: 0.9;
+    }
+
+    #phrase {
+      font-size: clamp(0.9rem, 3.5vw, 1.15rem);
+      color: #e8f4f8;
+      text-align: center;
+      max-width: 90%;
+      line-height: 1.5;
+      min-height: 2.5em;
+      opacity: 0;
+      transition: opacity 1.2s ease;
+      text-shadow: 0 0 12px rgba(255, 220, 100, 0.3);
+    }
+
+    #phrase.visible {
+      opacity: 1;
+    }
+
+    /* ── Кнопки ── */
+    .btn {
+      pointer-events: auto;
+      padding: 12px 28px;
+      font-size: clamp(0.9rem, 3vw, 1rem);
+      font-family: inherit;
+      color: #c8e8f0;
+      background: rgba(20, 60, 90, 0.7);
+      border: 1px solid rgba(100, 200, 220, 0.35);
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background 0.4s, box-shadow 0.4s, transform 0.2s;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .btn:hover {
+      background: rgba(30, 80, 110, 0.85);
+      box-shadow: 0 0 20px rgba(80, 180, 210, 0.3);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    #restart-btn {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: none;
+      pointer-events: auto;
+    }
+
+    #restart-btn.visible {
+      display: block;
+    }
+
+    /* ── Стартовый экран ── */
+    #start-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      background: rgba(8, 20, 40, 0.75);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 20;
+      transition: opacity 0.8s ease;
+    }
+
+    #start-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #start-screen h1 {
+      font-size: clamp(1.6rem, 6vw, 2.4rem);
+      font-weight: 300;
+      color: #a8d8ea;
+      letter-spacing: 0.12em;
+      text-shadow: 0 0 30px rgba(100, 200, 220, 0.5);
+    }
+
+    #start-screen p {
+      font-size: clamp(0.85rem, 3vw, 1rem);
+      color: #6ec6d9;
+      text-align: center;
+      max-width: 320px;
+      line-height: 1.6;
+      opacity: 0.85;
+    }
+
+    /* ── Подсказка управления (мобильные) ── */
+    #touch-hint {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(0.75rem, 2.5vw, 0.85rem);
+      color: rgba(110, 198, 217, 0.5);
+      z-index: 10;
+      pointer-events: none;
+      display: none;
+    }
+
+    @media (max-width: 768px), (pointer: coarse) {
+      #touch-hint {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <canvas id="lake"></canvas>
+
+    <div id="ui">
+      <div id="title">Медленное озеро</div>
+      <div id="counter">Огоньки: 0</div>
+      <div id="phrase"></div>
+    </div>
+
+    <button id="restart-btn" class="btn">Начать заново</button>
+    <div id="touch-hint">Коснитесь озера, чтобы плыть</div>
+
+    <div id="start-screen">
+      <h1>Медленное озеро</h1>
+      <p>Никуда не спеши. Плыви по тихому озеру и собирай маленькие огоньки спокойствия.</p>
+      <button id="start-btn" class="btn">Начать игру</button>
+    </div>
+  </div>
+
+  <script>
+    // ══════════════════════════════════════════════
+    //  «Медленное озеро» — релакс-игра
+    //  Один файл, без внешних библиотек
+    // ══════════════════════════════════════════════
+
+    // ── DOM-элементы ──
+    const canvas = document.getElementById('lake');
+    const ctx = canvas.getContext('2d');
+    const counterEl = document.getElementById('counter');
+    const phraseEl = document.getElementById('phrase');
+    const startScreen = document.getElementById('start-screen');
+    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    // ── Спокойные фразы после сбора огонька ──
+    const PHRASES = [
+      'Сегодня можно не спешить.',
+      'Ты уже делаешь достаточно.',
+      'Сделай спокойный вдох.',
+      'Всё постепенно становится легче.',
+      'Ты в безопасности.',
+      'Позволь себе немного тишины.',
+      'Один маленький шаг — уже движение.',
+      'Не нужно быть идеальной.',
+      'Можно просто побыть здесь.',
+      'Тишина тоже лечит.',
+    ];
+
+    // ── Состояние игры ──
+    let gameRunning = false;
+    let score = 0;
+    let phraseTimeout = null;
+    let phraseIndex = 0;
+    let time = 0;
+
+    // Лодочка
+    const boat = {
+      x: 0,
+      y: 0,
+      angle: 0,
+      speed: 0,
+      maxSpeed: 1.8,
+      friction: 0.96,
+      width: 28,
+      height: 14,
+    };
+
+    // Направление ввода (нормализованный вектор)
+    const input = { x: 0, y: 0 };
+
+    // Касание / мышь — целевая точка
+    let touchTarget = null;
+
+    // Огоньки на озере
+    let lights = [];
+    const MAX_LIGHTS = 5;
+    const LIGHT_RADIUS = 10;
+    const COLLECT_DISTANCE = 30;
+
+    // Звёзды на небе
+    let stars = [];
+
+    // Волны воды (параметры для анимации)
+    const waves = [
+      { amp: 6, freq: 0.008, speed: 0.4, y: 0.55 },
+      { amp: 4, freq: 0.012, speed: 0.3, y: 0.62 },
+      { amp: 3, freq: 0.015, speed: 0.5, y: 0.70 },
+    ];
+
+    // Нажатые клавиши
+    const keys = {};
+
+    // ── Инициализация размеров canvas ──
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initStars();
+      if (!gameRunning) {
+        boat.x = canvas.width / 2;
+        boat.y = canvas.height * 0.65;
+      }
+    }
+
+    // ── Звёзды ──
+    function initStars() {
+      stars = [];
+      const count = Math.floor((canvas.width * canvas.height) / 8000);
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height * 0.45,
+          r: Math.random() * 1.5 + 0.3,
+          twinkle: Math.random() * Math.PI * 2,
+          speed: Math.random() * 0.02 + 0.005,
+        });
+      }
+    }
+
+    // ── Создание нового огонька в случайном месте ──
+    function spawnLight() {
+      const margin = 60;
+      lights.push({
+        x: margin + Math.random() * (canvas.width - margin * 2),
+        y: canvas.height * 0.48 + Math.random() * (canvas.height * 0.38),
+        pulse: Math.random() * Math.PI * 2,
+        glow: 0.6 + Math.random() * 0.4,
+      });
+    }
+
+    // ── Заполнить озеро огоньками ──
+    function fillLights() {
+      lights = [];
+      for (let i = 0; i < MAX_LIGHTS; i++) spawnLight();
+    }
+
+    // ── Показать спокойную фразу ──
+    function showPhrase() {
+      phraseEl.textContent = PHRASES[phraseIndex % PHRASES.length];
+      phraseIndex++;
+      phraseEl.classList.add('visible');
+
+      clearTimeout(phraseTimeout);
+      phraseTimeout = setTimeout(() => {
+        phraseEl.classList.remove('visible');
+      }, 5000);
+    }
+
+    // ── Обновить счётчик ──
+    function updateCounter() {
+      counterEl.textContent = `Огоньки: ${score}`;
+    }
+
+    // ── Сброс и начало игры ──
+    function startGame() {
+      gameRunning = true;
+      score = 0;
+      phraseIndex = 0;
+      phraseEl.classList.remove('visible');
+      phraseEl.textContent = '';
+      updateCounter();
+
+      boat.x = canvas.width / 2;
+      boat.y = canvas.height * 0.65;
+      boat.angle = -Math.PI / 2;
+      boat.speed = 0;
+      input.x = 0;
+      input.y = 0;
+      touchTarget = null;
+
+      fillLights();
+
+      startScreen.classList.add('hidden');
+      restartBtn.classList.add('visible');
+    }
+
+    // ── Обработка ввода с клавиатуры (стрелки, WASD, русская раскладка) ──
+    function updateKeyboardInput() {
+      let dx = 0;
+      let dy = 0;
+
+      if (keys['ArrowUp']    || keys['w'] || keys['W'] || keys['ц'] || keys['Ц']) dy -= 1;
+      if (keys['ArrowDown']  || keys['s'] || keys['S'] || keys['ы'] || keys['Ы']) dy += 1;
+      if (keys['ArrowLeft']  || keys['a'] || keys['A'] || keys['ф'] || keys['Ф']) dx -= 1;
+      if (keys['ArrowRight'] || keys['d'] || keys['D'] || keys['в'] || keys['В']) dx += 1;
+
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.hypot(dx, dy);
+        input.x = dx / len;
+        input.y = dy / len;
+        touchTarget = null; // клавиатура отменяет касание
+      } else if (!touchTarget) {
+        input.x = 0;
+        input.y = 0;
+      }
+    }
+
+    // ── Обновление направления от касания/мыши ──
+    function updateTouchInput() {
+      if (!touchTarget) return;
+
+      const dx = touchTarget.x - boat.x;
+      const dy = touchTarget.y - boat.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 15) {
+        input.x = dx / dist;
+        input.y = dy / dist;
+      } else {
+        input.x = 0;
+        input.y = 0;
+      }
+    }
+
+    // ── Движение лодочки ──
+    function updateBoat() {
+      updateKeyboardInput();
+      updateTouchInput();
+
+      // Плавное ускорение в направлении ввода
+      if (input.x !== 0 || input.y !== 0) {
+        boat.speed += 0.04;
+        if (boat.speed > boat.maxSpeed) boat.speed = boat.maxSpeed;
+        boat.angle = Math.atan2(input.y, input.x) + Math.PI / 2;
+      } else {
+        boat.speed *= boat.friction;
+        if (boat.speed < 0.05) boat.speed = 0;
+      }
+
+      boat.x += Math.sin(boat.angle) * boat.speed;
+      boat.y -= Math.cos(boat.angle) * boat.speed;
+
+      // Мягкие границы озера
+      const padX = 30;
+      const padTop = canvas.height * 0.42;
+      const padBot = canvas.height - 30;
+
+      if (boat.x < padX) { boat.x = padX; boat.speed *= 0.5; }
+      if (boat.x > canvas.width - padX) { boat.x = canvas.width - padX; boat.speed *= 0.5; }
+      if (boat.y < padTop) { boat.y = padTop; boat.speed *= 0.5; }
+      if (boat.y > padBot) { boat.y = padBot; boat.speed *= 0.5; }
+    }
+
+    // ── Проверка сбора огоньков ──
+    function checkCollection() {
+      for (let i = lights.length - 1; i >= 0; i--) {
+        const light = lights[i];
+        const dist = Math.hypot(boat.x - light.x, boat.y - light.y);
+
+        if (dist < COLLECT_DISTANCE) {
+          lights.splice(i, 1);
+          score++;
+          updateCounter();
+          showPhrase();
+          spawnLight(); // сразу появляется новый
+        }
+      }
+    }
+
+    // ══════════════════════════════════════════════
+    //  Отрисовка
+    // ══════════════════════════════════════════════
+
+    // ── Небо и звёзды ──
+    function drawSky() {
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.5);
+      grad.addColorStop(0, '#0a1628');
+      grad.addColorStop(0.5, '#0f2847');
+      grad.addColorStop(1, '#143a5c');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.5);
+
+      // Звёзды с мерцанием
+      for (const star of stars) {
+        const alpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(star.twinkle + time * star.speed));
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200, 220, 255, ${alpha})`;
+        ctx.fill();
+      }
+
+      // Луна
+      const moonX = canvas.width * 0.78;
+      const moonY = canvas.height * 0.12;
+      const moonR = Math.min(canvas.width, canvas.height) * 0.04;
+
+      const moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 4);
+      moonGlow.addColorStop(0, 'rgba(200, 220, 240, 0.15)');
+      moonGlow.addColorStop(1, 'rgba(200, 220, 240, 0)');
+      ctx.fillStyle = moonGlow;
+      ctx.fillRect(moonX - moonR * 4, moonY - moonR * 4, moonR * 8, moonR * 8);
+
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+      ctx.fillStyle = '#d4e8f0';
+      ctx.fill();
+    }
+
+    // ── Вода с волнами ──
+    function drawWater() {
+      const waterTop = canvas.height * 0.38;
+
+      // Градиент воды
+      const waterGrad = ctx.createLinearGradient(0, waterTop, 0, canvas.height);
+      waterGrad.addColorStop(0, '#1a4a6e');
+      waterGrad.addColorStop(0.4, '#1e5a7a');
+      waterGrad.addColorStop(1, '#0d3048');
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(0, waterTop, canvas.width, canvas.height - waterTop);
+
+      // Анимированные волны
+      for (const wave of waves) {
+        const baseY = canvas.height * wave.y;
+
+        ctx.beginPath();
+        ctx.moveTo(0, baseY);
+
+        for (let x = 0; x <= canvas.width; x += 3) {
+          const y = baseY
+            + Math.sin(x * wave.freq + time * wave.speed) * wave.amp
+            + Math.sin(x * wave.freq * 1.7 + time * wave.speed * 0.7) * wave.amp * 0.4;
+          ctx.lineTo(x, y);
+        }
+
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.lineTo(0, canvas.height);
+        ctx.closePath();
+
+        ctx.fillStyle = `rgba(40, 120, 150, ${0.08 + wave.amp * 0.01})`;
+        ctx.fill();
+      }
+
+      // Лёгкий блик на воде
+      const shimmer = 0.03 + 0.02 * Math.sin(time * 0.3);
+      ctx.fillStyle = `rgba(100, 200, 220, ${shimmer})`;
+      ctx.fillRect(0, waterTop, canvas.width, canvas.height * 0.15);
+    }
+
+    // ── Светящийся огонёк ──
+    function drawLight(light) {
+      const pulse = 0.7 + 0.3 * Math.sin(light.pulse + time * 2);
+      const r = LIGHT_RADIUS * pulse;
+
+      // Внешнее свечение
+      const glow = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, r * 4);
+      glow.addColorStop(0, `rgba(255, 230, 120, ${0.5 * light.glow})`);
+      glow.addColorStop(0.4, `rgba(255, 200, 80, ${0.15 * light.glow})`);
+      glow.addColorStop(1, 'rgba(255, 200, 80, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(light.x, light.y, r * 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ядро огонька
+      const core = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, r);
+      core.addColorStop(0, '#fff8d0');
+      core.addColorStop(0.5, '#ffe066');
+      core.addColorStop(1, 'rgba(255, 200, 50, 0)');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(light.x, light.y, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Отражение в воде
+      const reflectY = light.y + (canvas.height - light.y) * 0.15;
+      const reflect = ctx.createRadialGradient(light.x, reflectY, 0, light.x, reflectY, r * 2);
+      reflect.addColorStop(0, `rgba(255, 220, 100, ${0.12 * pulse})`);
+      reflect.addColorStop(1, 'rgba(255, 220, 100, 0)');
+      ctx.fillStyle = reflect;
+      ctx.beginPath();
+      ctx.arc(light.x, reflectY, r * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Лодочка ──
+    function drawBoat() {
+      ctx.save();
+      ctx.translate(boat.x, boat.y);
+      // Лёгкое покачивание на волнах
+      ctx.rotate(boat.angle + Math.sin(time * 1.2) * 0.03);
+
+      const w = boat.width;
+      const h = boat.height;
+
+      // Отражение лодки в воде
+      ctx.save();
+      ctx.scale(1, -0.3);
+      ctx.translate(0, h * 3.5);
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = '#1a3050';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, w * 0.6, h * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Корпус лодки
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.5, -h * 0.3);
+      ctx.quadraticCurveTo(-w * 0.55, h * 0.5, 0, h * 0.6);
+      ctx.quadraticCurveTo(w * 0.55, h * 0.5, w * 0.5, -h * 0.3);
+      ctx.quadraticCurveTo(0, -h * 0.7, -w * 0.5, -h * 0.3);
+      ctx.closePath();
+
+      const hullGrad = ctx.createLinearGradient(-w, 0, w, 0);
+      hullGrad.addColorStop(0, '#3a6a8a');
+      hullGrad.addColorStop(0.5, '#5a9ab8');
+      hullGrad.addColorStop(1, '#3a6a8a');
+      ctx.fillStyle = hullGrad;
+      ctx.fill();
+
+      // Борт
+      ctx.strokeStyle = 'rgba(150, 210, 230, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Маленький фонарик на носу
+      const lanternPulse = 0.6 + 0.4 * Math.sin(time * 1.5);
+      const lanternGlow = ctx.createRadialGradient(0, -h * 0.5, 0, 0, -h * 0.5, 8);
+      lanternGlow.addColorStop(0, `rgba(255, 230, 150, ${0.6 * lanternPulse})`);
+      lanternGlow.addColorStop(1, 'rgba(255, 230, 150, 0)');
+      ctx.fillStyle = lanternGlow;
+      ctx.beginPath();
+      ctx.arc(0, -h * 0.5, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(0, -h * 0.5, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe8a0';
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ── Дальние силуэты берега ──
+    function drawShore() {
+      const shoreY = canvas.height * 0.36;
+
+      ctx.beginPath();
+      ctx.moveTo(0, shoreY);
+      for (let x = 0; x <= canvas.width; x += 40) {
+        const h = Math.sin(x * 0.005 + 1) * 15 + Math.sin(x * 0.012) * 8;
+        ctx.lineTo(x, shoreY - h);
+      }
+      ctx.lineTo(canvas.width, shoreY + 30);
+      ctx.lineTo(0, shoreY + 30);
+      ctx.closePath();
+
+      const shoreGrad = ctx.createLinearGradient(0, shoreY - 30, 0, shoreY + 30);
+      shoreGrad.addColorStop(0, '#0c2035');
+      shoreGrad.addColorStop(1, '#1a4a6e');
+      ctx.fillStyle = shoreGrad;
+      ctx.fill();
+
+      // Силуэты деревьев
+      for (let x = 60; x < canvas.width; x += 80 + Math.sin(x) * 30) {
+        const treeH = 20 + Math.sin(x * 0.03) * 12;
+        const treeY = shoreY - Math.sin(x * 0.005 + 1) * 15;
+        ctx.beginPath();
+        ctx.moveTo(x, treeY);
+        ctx.lineTo(x - 8, treeY - treeH);
+        ctx.lineTo(x + 8, treeY - treeH);
+        ctx.closePath();
+        ctx.fillStyle = '#0a1a2a';
+        ctx.fill();
+      }
+    }
+
+    // ── Главный цикл отрисовки ──
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawSky();
+      drawShore();
+      drawWater();
+
+      // Огоньки (под лодкой по глубине, но мы рисуем до лодки)
+      for (const light of lights) drawLight(light);
+
+      if (gameRunning) drawBoat();
+    }
+
+    // ── Игровой цикл ──
+    function gameLoop() {
+      time += 0.016;
+
+      if (gameRunning) {
+        updateBoat();
+        checkCollection();
+      }
+
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ══════════════════════════════════════════════
+    //  События
+    // ══════════════════════════════════════════════
+
+    // Клавиатура
+    window.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
+      // Предотвращаем прокрутку стрелками
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+
+    // Касание и мышь — плыть к точке
+    function setTouchTarget(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      touchTarget = {
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+      };
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (!gameRunning) return;
+      setTouchTarget(e.clientX, e.clientY);
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!gameRunning || e.buttons !== 1) return;
+      setTouchTarget(e.clientX, e.clientY);
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      // Оставляем цель — лодка доплывёт и остановится
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (!gameRunning) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      setTouchTarget(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (!gameRunning) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      setTouchTarget(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+      touchTarget = null;
+      if (!keys['ArrowUp'] && !keys['ArrowDown'] && !keys['ArrowLeft'] && !keys['ArrowRight']
+          && !keys['w'] && !keys['a'] && !keys['s'] && !keys['d']) {
+        input.x = 0;
+        input.y = 0;
+      }
+    });
+
+    // Кнопки
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
+
+    // Изменение размера окна
+    window.addEventListener('resize', resize);
+
+    // ── Запуск ──
+    resize();
+    gameLoop();
+  </script>
+</body>
+</html>
