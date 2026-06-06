@@ -5,745 +5,1732 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Медленное озеро</title>
   <style>
-    /* ── Сброс и базовые стили ── */
+    /* ── Базовые стили ── */
     *, *::before, *::after {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
     }
 
     html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #0a1628;
-      touch-action: none; /* отключаем прокрутку при касании */
+      font-family: "Georgia", "Times New Roman", serif;
+      background: #0d1025;
+      touch-action: none;
     }
 
-    /* ── Контейнер игры ── */
-    #game-container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-
-    #lake {
+    /* ── Игровой холст ── */
+    #gameCanvas {
       display: block;
       width: 100%;
       height: 100%;
     }
 
-    /* ── Верхняя панель UI ── */
-    #ui {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      padding: 16px 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      pointer-events: none;
-      z-index: 10;
+    #gameCanvas.mouse-nav {
+      cursor: crosshair;
     }
 
-    #title {
-      font-size: clamp(1.1rem, 4vw, 1.6rem);
-      font-weight: 300;
-      color: #a8d8ea;
-      letter-spacing: 0.15em;
-      text-shadow: 0 0 20px rgba(100, 200, 220, 0.4);
-    }
-
-    #counter {
-      font-size: clamp(0.85rem, 3vw, 1rem);
-      color: #6ec6d9;
-      opacity: 0.9;
-    }
-
-    #phrase {
-      font-size: clamp(0.9rem, 3.5vw, 1.15rem);
-      color: #e8f4f8;
-      text-align: center;
-      max-width: 90%;
-      line-height: 1.5;
-      min-height: 2.5em;
-      opacity: 0;
-      transition: opacity 1.2s ease;
-      text-shadow: 0 0 12px rgba(255, 220, 100, 0.3);
-    }
-
-    #phrase.visible {
-      opacity: 1;
-    }
-
-    /* ── Кнопки ── */
-    .btn {
-      pointer-events: auto;
-      padding: 12px 28px;
-      font-size: clamp(0.9rem, 3vw, 1rem);
-      font-family: inherit;
-      color: #c8e8f0;
-      background: rgba(20, 60, 90, 0.7);
-      border: 1px solid rgba(100, 200, 220, 0.35);
-      border-radius: 30px;
-      cursor: pointer;
-      transition: background 0.4s, box-shadow 0.4s, transform 0.2s;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-    }
-
-    .btn:hover {
-      background: rgba(30, 80, 110, 0.85);
-      box-shadow: 0 0 20px rgba(80, 180, 210, 0.3);
-    }
-
-    .btn:active {
-      transform: scale(0.97);
-    }
-
-    #restart-btn {
-      position: absolute;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 10;
-      display: none;
-      pointer-events: auto;
-    }
-
-    #restart-btn.visible {
-      display: block;
-    }
-
-    /* ── Стартовый экран ── */
-    #start-screen {
-      position: absolute;
+    /* ── Общий оверлей (старт / пауза) ── */
+    .overlay {
+      position: fixed;
       inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 24px;
-      background: rgba(8, 20, 40, 0.75);
+      background: rgba(6, 14, 30, 0.72);
       backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      z-index: 20;
-      transition: opacity 0.8s ease;
+      z-index: 10;
+      transition: opacity 0.6s ease;
     }
 
-    #start-screen.hidden {
+    .overlay.hidden {
       opacity: 0;
       pointer-events: none;
     }
 
-    #start-screen h1 {
-      font-size: clamp(1.6rem, 6vw, 2.4rem);
+    .overlay h1 {
+      font-size: clamp(1.6rem, 5vw, 2.8rem);
       font-weight: 300;
-      color: #a8d8ea;
-      letter-spacing: 0.12em;
-      text-shadow: 0 0 30px rgba(100, 200, 220, 0.5);
+      font-style: italic;
+      color: #e8c4d8;
+      letter-spacing: 0.14em;
+      margin-bottom: 0.4em;
+      text-shadow: 0 0 32px rgba(220, 160, 200, 0.5), 0 0 60px rgba(120, 180, 220, 0.25);
     }
 
-    #start-screen p {
-      font-size: clamp(0.85rem, 3vw, 1rem);
-      color: #6ec6d9;
+    .overlay p.subtitle {
+      font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+      color: #9a8ab8;
+      margin-bottom: 2em;
       text-align: center;
-      max-width: 320px;
-      line-height: 1.6;
-      opacity: 0.85;
+      max-width: 340px;
+      line-height: 1.7;
+      font-style: italic;
     }
 
-    /* ── Подсказка управления (мобильные) ── */
-    #touch-hint {
-      position: absolute;
-      bottom: 70px;
+    /* ── Кнопки ── */
+    .btn {
+      padding: 0.75em 2em;
+      font-size: clamp(0.9rem, 2.5vw, 1rem);
+      font-family: inherit;
+      color: #1a1028;
+      background: linear-gradient(135deg, #e8b4d0, #9ecde8);
+      border: none;
+      border-radius: 2em;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(200, 140, 180, 0.4);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 32px rgba(200, 140, 180, 0.55);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    /* ── HUD: счётчик ── */
+    #hud {
+      position: fixed;
+      top: env(safe-area-inset-top, 12px);
       left: 50%;
       transform: translateX(-50%);
-      font-size: clamp(0.75rem, 2.5vw, 0.85rem);
-      color: rgba(110, 198, 217, 0.5);
-      z-index: 10;
+      padding-top: 12px;
+      z-index: 5;
       pointer-events: none;
-      display: none;
+      opacity: 0;
+      transition: opacity 0.6s ease;
     }
 
-    @media (max-width: 768px), (pointer: coarse) {
-      #touch-hint {
-        display: block;
-      }
+    #hud.visible {
+      opacity: 1;
+    }
+
+    #counter {
+      font-size: clamp(1rem, 3vw, 1.25rem);
+      color: #ffe4a8;
+      text-shadow: 0 0 16px rgba(255, 210, 140, 0.7), 0 0 30px rgba(255, 180, 200, 0.3);
+      letter-spacing: 0.06em;
+      font-style: italic;
+    }
+
+    /* ── Спокойная фраза (выше подсказки управления) ── */
+    #phraseBox {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 16px) + 78px);
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: min(90vw, 520px);
+      padding: 1em 1.6em;
+      text-align: center;
+      font-size: clamp(0.9rem, 2.8vw, 1.1rem);
+      font-style: italic;
+      color: #e8d4f0;
+      background: rgba(30, 20, 50, 0.62);
+      border: 1px solid rgba(220, 160, 200, 0.2);
+      border-radius: 1.2em;
+      box-shadow: 0 4px 30px rgba(180, 120, 180, 0.15);
+      opacity: 0;
+      transition: opacity 1.4s ease;
+      z-index: 5;
+      pointer-events: none;
+      line-height: 1.65;
+    }
+
+    #phraseBox.show {
+      opacity: 1;
+    }
+
+    /* ── Кнопка «Начать заново» ── */
+    #restartBtn {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 12px) + 12px);
+      right: calc(env(safe-area-inset-right, 12px) + 12px);
+      z-index: 5;
+      padding: 0.5em 1em;
+      font-size: clamp(0.75rem, 2.2vw, 0.85rem);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+
+    #restartBtn.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ── Подсказка управления (внизу экрана) ── */
+    #controlsHint {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 16px) + 14px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(0.7rem, 2vw, 0.8rem);
+      color: rgba(106, 154, 184, 0.7);
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    #controlsHint.visible {
+      opacity: 1;
+    }
+
+    /* ── Кнопка музыки ── */
+    #musicBtn {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 12px) + 12px);
+      left: calc(env(safe-area-inset-left, 12px) + 12px);
+      z-index: 5;
+      width: 2.4em;
+      height: 2.4em;
+      padding: 0;
+      font-size: 1rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+
+    #musicBtn.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #musicBtn.muted {
+      background: linear-gradient(135deg, #6a6080, #4a5060);
+      box-shadow: none;
     }
   </style>
 </head>
 <body>
 
-  <div id="game-container">
-    <canvas id="lake"></canvas>
+  <canvas id="gameCanvas"></canvas>
 
-    <div id="ui">
-      <div id="title">Медленное озеро</div>
-      <div id="counter">Огоньки: 0</div>
-      <div id="phrase"></div>
-    </div>
-
-    <button id="restart-btn" class="btn">Начать заново</button>
-    <div id="touch-hint">Коснитесь озера, чтобы плыть</div>
-
-    <div id="start-screen">
-      <h1>Медленное озеро</h1>
-      <p>Никуда не спеши. Плыви по тихому озеру и собирай маленькие огоньки спокойствия.</p>
-      <button id="start-btn" class="btn">Начать игру</button>
-    </div>
+  <!-- Стартовый экран -->
+  <div id="startOverlay" class="overlay">
+    <h1>Медленное озеро</h1>
+    <p class="subtitle">Плыви по тихой воде под луной, собирай светящиеся огоньки и слушай шёпот ночи. Без спешки — только нежность и покой.</p>
+    <button id="startBtn" class="btn">Начать игру</button>
   </div>
 
+  <!-- HUD -->
+  <div id="hud">
+    <span id="counter">Огоньки: 0</span>
+  </div>
+
+  <!-- Фраза после сбора -->
+  <div id="phraseBox"></div>
+
+  <!-- Перезапуск и музыка -->
+  <button id="restartBtn" class="btn">Начать заново</button>
+  <button id="musicBtn" class="btn" title="Музыка вкл/выкл">♪</button>
+
+  <!-- Подсказка -->
+  <p id="controlsHint"></p>
+
   <script>
-    // ══════════════════════════════════════════════
-    //  «Медленное озеро» — релакс-игра
-    //  Один файл, без внешних библиотек
-    // ══════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
+       Медленное озеро — релакс-игра на одном холсте
+       ═══════════════════════════════════════════════ */
 
     // ── DOM-элементы ──
-    const canvas = document.getElementById('lake');
+    const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const startOverlay = document.getElementById('startOverlay');
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const hud = document.getElementById('hud');
     const counterEl = document.getElementById('counter');
-    const phraseEl = document.getElementById('phrase');
-    const startScreen = document.getElementById('start-screen');
-    const startBtn = document.getElementById('start-btn');
-    const restartBtn = document.getElementById('restart-btn');
+    const phraseBox = document.getElementById('phraseBox');
+    const controlsHint = document.getElementById('controlsHint');
+    const musicBtn = document.getElementById('musicBtn');
 
-    // ── Спокойные фразы после сбора огонька ──
+    // ── Романтичные фразы после сбора огонька ──
     const PHRASES = [
-      'Сегодня можно не спешить.',
-      'Ты уже делаешь достаточно.',
-      'Сделай спокойный вдох.',
-      'Всё постепенно становится легче.',
-      'Ты в безопасности.',
-      'Позволь себе немного тишины.',
-      'Один маленький шаг — уже движение.',
-      'Не нужно быть идеальной.',
-      'Можно просто побыть здесь.',
-      'Тишина тоже лечит.',
+      'Тишина ложится на воду, как лёгкое одеяло.',
+      'Каждый огонёк — маленькое «спасибо» от ночи.',
+      'Озеро дышит медленно, и ты дышишь вместе с ним.',
+      'Звёзды смотрят сверху и не торопят.',
+      'Вода помнит каждый тихий вечер.',
+      'Свет мягко касается поверхности — и уходит вглубь.',
+      'Здесь никуда не нужно спешить.',
+      'Лодка скользит, время растворяется.',
+      'Ночь обнимает озеро бирюзовым светом.',
+      'Ты собрал свет — оставь внутри тепло.',
+      'Волны шепчут что-то очень старое и доброе.',
+      'Между небом и водой — только покой.',
+      'Огонёк погас, но свет остался в памяти.',
+      'Слушай, как тихо становится внутри.',
+      'Луна рисует дорожку — можно не торопиться.',
+      'Каждый миг на воде — маленькое чудо.',
+      'Пустота вокруг наполняется светом.',
+      'Дальше — ещё один огонёк, ещё один вдох.',
+      'Лунная дорожка ведёт туда, где сердце спокойно.',
+      'Ночное озеро хранит чужие и твои тайны.',
+      'Свет в ладонях — словно подарок от звёзд.',
+      'В этой тишине слышно, как бьётся время.',
+      'Два отражения — луны и твоей лодки — танцуют вместе.',
+      'Небо целует воду, и от этого рождается свет.',
+      'Каждая волна — нежное «я рядом».',
+      'Огонёк угас, но тепло осталось в груди.',
+      'Тёмная вода хранит свет, как память хранит мечты.',
+      'Плыть медленно — значит успеть почувствовать.',
+      'Где-то на берегу мерцает чей-то окошко — и это тоже свет.',
+      'Ночь пахнет прохладой и чем-то очень родным.',
+      'Сердце отпускает лишнее, как лодка отпускает волну.',
+      'Ты и ночь — два берега одной реки.',
+      'Светлячок в небе — огонёк в воде: всё соединено.',
+      'Здесь можно вспомнить того, кого любишь, и улыбнуться.',
+      'Луна не спрашивает, куда ты плывёшь — она просто светит.',
+      'Каждый огонёк — приглашение остаться ещё немного.',
+      'Вода холодная, а внутри — тихо и тепло.',
+      'Между волнами прячутся маленькие вселенные.',
+      'Пусть эта ночь запомнится только добрым.',
+      'Свет касается лодки — и мир становится мягче.',
+      'Озеро не торопит. Оно ждёт столько, сколько нужно.',
+      'Тишина — это тоже объятие.',
+      'Далёкие огни берега — как обещания, что ты не один.',
+      'Ночь дарит свет тем, кто умеет замедлиться.',
+      'Плыви туда, где отражается луна — там всегда светло.',
     ];
 
     // ── Состояние игры ──
     let gameRunning = false;
     let score = 0;
-    let phraseTimeout = null;
     let phraseIndex = 0;
+    let phraseTimeout = null;
     let time = 0;
 
-    // Лодочка
+    // ── Лодочка (вид сверху — классическая гребная) ──
     const boat = {
       x: 0,
       y: 0,
       angle: 0,
-      speed: 0,
       maxSpeed: 1.8,
-      friction: 0.96,
-      width: 28,
-      height: 14,
+      length: 54,
+      width: 24,
+      moving: false,
     };
 
-    // Направление ввода (нормализованный вектор)
-    const input = { x: 0, y: 0 };
-
-    // Касание / мышь — целевая точка
-    let touchTarget = null;
-
-    // Огоньки на озере
-    let lights = [];
-    const MAX_LIGHTS = 5;
-    const LIGHT_RADIUS = 10;
-    const COLLECT_DISTANCE = 30;
-
-    // Звёзды на небе
-    let stars = [];
-
-    // Волны воды (параметры для анимации)
-    const waves = [
-      { amp: 6, freq: 0.008, speed: 0.4, y: 0.55 },
-      { amp: 4, freq: 0.012, speed: 0.3, y: 0.62 },
-      { amp: 3, freq: 0.015, speed: 0.5, y: 0.70 },
-    ];
-
-    // Нажатые клавиши
+    // ── Ввод: клавиатура ──
     const keys = {};
 
-    // ── Инициализация размеров canvas ──
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      initStars();
-      if (!gameRunning) {
-        boat.x = canvas.width / 2;
-        boat.y = canvas.height * 0.65;
-      }
+    // ── Ввод: цель движения (мышь / касание)
+    let touchTarget = null;
+
+    /* ── Мобильное устройство или десктоп ── */
+    function isTouchDevice() {
+      return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     }
 
-    // ── Звёзды ──
+    function updateControlsHint() {
+      controlsHint.textContent = isTouchDevice()
+        ? 'Коснись воды, куда плыть'
+        : 'Стрелки / WASD — или кликни по воде, куда плыть';
+    }
+
+    updateControlsHint();
+    window.addEventListener('resize', updateControlsHint);
+
+    // ── Огоньки ──
+    let lights = [];
+    const MAX_LIGHTS = 5;
+    const COLLECT_RADIUS = 28;
+
+    // ── Звёзды, лепестки, огни на берегу, деревья ──
+    let stars = [];
+    let petals = [];
+    let shoreLights = [];
+    let trees = [];
+    let waterSparkles = [];
+    let shoreProfile = [];
+
+    const WAVE_LAYERS = 5;
+    const MOON_X_RATIO = 0.72;
+
+    function getHorizonY() {
+      return canvas.height * 0.355;
+    }
+
+    function getWaterTop() {
+      return canvas.height * 0.348;
+    }
+
+    /* ─────────────────────────────────────────────
+       Инициализация размеров холста
+       ───────────────────────────────────────────── */
+    function resize() {
+      const w = Math.max(window.innerWidth || 800, 320);
+      const h = Math.max(window.innerHeight || 600, 480);
+      canvas.width = w;
+      canvas.height = h;
+      rebuildWorld();
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    /* ─────────────────────────────────────────────
+       Создание звёзд
+       ───────────────────────────────────────────── */
     function initStars() {
       stars = [];
-      const count = Math.floor((canvas.width * canvas.height) / 8000);
+      const count = Math.floor((canvas.width * canvas.height) / 2800);
       for (let i = 0; i < count; i++) {
         stars.push({
           x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height * 0.45,
-          r: Math.random() * 1.5 + 0.3,
+          y: Math.random() * canvas.height * 0.52,
+          radius: Math.random() * 1.6 + 0.2,
           twinkle: Math.random() * Math.PI * 2,
-          speed: Math.random() * 0.02 + 0.005,
+          speed: Math.random() * 0.025 + 0.004,
+          tint: Math.random() > 0.7 ? 'warm' : 'cool',
         });
       }
     }
 
-    // ── Создание нового огонька в случайном месте ──
+    /* ─────────────────────────────────────────────
+       Лепестки — романтичные частицы на ветру
+       ───────────────────────────────────────────── */
+    function initPetals() {
+      petals = [];
+      const count = 18;
+      for (let i = 0; i < count; i++) {
+        petals.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: 3 + Math.random() * 4,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.02,
+          driftX: (Math.random() - 0.5) * 0.3,
+          driftY: 0.15 + Math.random() * 0.25,
+          alpha: 0.15 + Math.random() * 0.25,
+          hue: Math.random() > 0.5 ? '#e8a0c0' : '#f0c8d8',
+        });
+      }
+    }
+
+    function updatePetals() {
+      for (const p of petals) {
+        p.x += p.driftX + Math.sin(time * 0.4 + p.rotation) * 0.15;
+        p.y += p.driftY;
+        p.rotation += p.rotSpeed;
+        if (p.y > canvas.height + 10) {
+          p.y = -10;
+          p.x = Math.random() * canvas.width;
+        }
+        if (p.x < -10) p.x = canvas.width + 10;
+        if (p.x > canvas.width + 10) p.x = -10;
+      }
+    }
+
+    /* ─────────────────────────────────────────────
+       Профиль береговой линии (натуральные изгибы)
+       ───────────────────────────────────────────── */
+    function buildShoreProfile() {
+      shoreProfile = [];
+      const baseY = getHorizonY();
+      for (let x = 0; x <= canvas.width; x += 3) {
+        const y = baseY
+          + Math.sin(x * 0.005) * 8
+          + Math.sin(x * 0.013 + 1.2) * 4
+          + Math.sin(x * 0.028 + 2.5) * 2
+          + Math.sin(x * 0.002) * 5;
+        shoreProfile.push({ x, y });
+      }
+    }
+
+    function shoreYAt(x) {
+      if (shoreProfile.length === 0) return getHorizonY();
+      const clamped = Math.max(0, Math.min(canvas.width, x));
+      const idx = Math.floor(clamped / 3);
+      const a = shoreProfile[Math.min(idx, shoreProfile.length - 1)];
+      const b = shoreProfile[Math.min(idx + 1, shoreProfile.length - 1)];
+      const t = (clamped - a.x) / 3;
+      return a.y + (b.y - a.y) * t;
+    }
+
+    /* ─────────────────────────────────────────────
+       Деревья — процедурная генерация леса
+       ───────────────────────────────────────────── */
+    function initTrees() {
+      trees = [];
+      const horizon = getHorizonY();
+      let x = -30;
+      while (x < canvas.width + 50) {
+        const depth = Math.random();
+        const scale = 0.45 + depth * 0.85;
+        const gap = (14 + Math.random() * 28) * scale;
+        x += gap;
+        const types = depth < 0.35 ? ['pine', 'pine', 'deciduous']
+          : depth < 0.7 ? ['pine', 'deciduous', 'deciduous', 'birch']
+          : ['deciduous', 'deciduous', 'birch', 'pine', 'willow'];
+        trees.push({
+          x,
+          baseY: horizon + (Math.random() - 0.5) * 6,
+          height: (50 + Math.random() * 90) * scale,
+          width: (30 + Math.random() * 40) * scale,
+          type: types[Math.floor(Math.random() * types.length)],
+          lean: (Math.random() - 0.5) * 0.12,
+          scale,
+          depth,
+          seed: Math.random() * 1000,
+        });
+      }
+      trees.sort((a, b) => a.depth - b.depth);
+    }
+
+    function initWaterSparkles() {
+      waterSparkles = [];
+      const count = Math.floor(canvas.width / 18);
+      for (let i = 0; i < count; i++) {
+        waterSparkles.push({
+          x: Math.random() * canvas.width,
+          y: getWaterTop() + Math.random() * (canvas.height - getWaterTop()),
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.02 + Math.random() * 0.04,
+          size: 0.5 + Math.random() * 1.5,
+        });
+      }
+    }
+
+    /* ── Огни на дальнем берегу ── */
+    function initShoreLights() {
+      shoreLights = [];
+      const count = 5 + Math.floor(Math.random() * 4);
+      const horizonY = getHorizonY();
+      for (let i = 0; i < count; i++) {
+        shoreLights.push({
+          x: 40 + Math.random() * (canvas.width - 80),
+          y: horizonY - 8 - Math.random() * 25,
+          radius: 1.5 + Math.random() * 2,
+          flicker: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+
+    /* ── Псевдо-шум для деталей ── */
+    function treeRand(seed, n) {
+      const v = Math.sin(seed * 127.1 + n * 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    }
+
+    /* ── Сосна ── */
+    function drawPineTree(tx, baseY, h, w, seed, sway, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(tx + sway, baseY);
+
+      const trunkH = h * 0.22;
+      const trunkW = w * 0.07;
+      ctx.fillStyle = '#1a1410';
+      ctx.fillRect(-trunkW / 2, -trunkH, trunkW, trunkH);
+
+      const layers = 5 + Math.floor(treeRand(seed, 1) * 2);
+      for (let i = 0; i < layers; i++) {
+        const t = i / layers;
+        const layerY = -trunkH - h * 0.12 - t * h * 0.78;
+        const layerW = w * (0.95 - t * 0.55) * (0.85 + treeRand(seed, i + 2) * 0.3);
+        const layerH = h * (0.22 - t * 0.04);
+
+        ctx.fillStyle = `rgb(${Math.floor(12 + t * 8)}, ${Math.floor(28 + t * 12)}, ${Math.floor(22 + t * 10)})`;
+        ctx.beginPath();
+        ctx.moveTo(0, layerY - layerH);
+        ctx.lineTo(layerW / 2, layerY + layerH * 0.35);
+        ctx.quadraticCurveTo(layerW * 0.15, layerY + layerH * 0.5, -layerW / 2, layerY + layerH * 0.35);
+        ctx.closePath();
+        ctx.fill();
+
+        // лунная подсветка краёв
+        ctx.strokeStyle = `rgba(90, 110, 130, ${0.08 + (1 - t) * 0.06})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    /* ── Лиственное дерево (облако из крон) ── */
+    function drawDeciduousTree(tx, baseY, h, w, seed, sway, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(tx + sway, baseY);
+
+      const trunkH = h * 0.38;
+      const trunkW = w * 0.09;
+      ctx.fillStyle = '#1a1410';
+      ctx.beginPath();
+      ctx.moveTo(-trunkW * 0.6, 0);
+      ctx.quadraticCurveTo(-trunkW, -trunkH * 0.5, -trunkW * 0.4, -trunkH);
+      ctx.lineTo(trunkW * 0.4, -trunkH);
+      ctx.quadraticCurveTo(trunkW, -trunkH * 0.5, trunkW * 0.6, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      const blobs = 6 + Math.floor(treeRand(seed, 3) * 4);
+      for (let i = 0; i < blobs; i++) {
+        const angle = treeRand(seed, i + 10) * Math.PI * 2;
+        const dist = treeRand(seed, i + 20) * w * 0.28;
+        const bx = Math.cos(angle) * dist;
+        const by = -trunkH - h * 0.35 + treeRand(seed, i + 30) * h * 0.15;
+        const br = w * (0.22 + treeRand(seed, i + 40) * 0.18);
+
+        const g = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+        g.addColorStop(0, `rgba(${18 + i}, ${32 + i * 2}, ${24 + i}, 0.95)`);
+        g.addColorStop(0.6, `rgba(${10 + i}, ${22 + i}, ${16 + i}, 0.85)`);
+        g.addColorStop(1, 'rgba(8, 16, 12, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(bx, by, br, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    /* ── Берёза ── */
+    function drawBirchTree(tx, baseY, h, w, seed, sway, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(tx + sway, baseY);
+
+      const trunkH = h * 0.72;
+      const trunkW = w * 0.05;
+      ctx.fillStyle = '#3a4048';
+      ctx.fillRect(-trunkW / 2, -trunkH, trunkW, trunkH);
+      // тёмные полоски на стволе
+      ctx.fillStyle = '#222830';
+      for (let i = 0; i < 5; i++) {
+        const sy = -trunkH * (0.15 + treeRand(seed, i + 50) * 0.65);
+        ctx.fillRect(-trunkW / 2, sy, trunkW, 1.2 + treeRand(seed, i + 60));
+      }
+
+      const cr = w * 0.32;
+      const cy = -trunkH - cr * 0.4;
+      const g = ctx.createRadialGradient(0, cy, 0, 0, cy, cr);
+      g.addColorStop(0, 'rgba(22, 38, 30, 0.9)');
+      g.addColorStop(0.7, 'rgba(14, 26, 20, 0.8)');
+      g.addColorStop(1, 'rgba(8, 16, 12, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, cy, cr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    /* ── Ива (мягкие свисающие ветви) ── */
+    function drawWillowTree(tx, baseY, h, w, seed, sway, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(tx + sway, baseY);
+
+      ctx.fillStyle = '#1a1410';
+      ctx.fillRect(-w * 0.04, -h * 0.35, w * 0.08, h * 0.35);
+
+      const canopyR = w * 0.42;
+      const cy = -h * 0.45;
+      ctx.fillStyle = 'rgba(16, 30, 24, 0.85)';
+      ctx.beginPath();
+      ctx.ellipse(0, cy, canopyR, canopyR * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(14, 28, 22, 0.6)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 12; i++) {
+        const startX = (treeRand(seed, i + 70) - 0.5) * canopyR * 1.4;
+        const startY = cy + canopyR * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.bezierCurveTo(
+          startX + Math.sin(time * 0.4 + i) * 4, startY + h * 0.15,
+          startX + Math.sin(time * 0.3 + i + 1) * 6, startY + h * 0.35,
+          startX + Math.sin(time * 0.5 + i) * 8, startY + h * 0.55
+        );
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawSingleTree(tree, alphaOverride, posX, posY) {
+      const tx = posX ?? tree.x;
+      const baseY = posY ?? tree.baseY;
+      const sway = Math.sin(time * 0.35 + tree.seed) * 2 * tree.scale;
+      const alpha = alphaOverride ?? (0.35 + tree.depth * 0.65);
+      switch (tree.type) {
+        case 'pine': drawPineTree(tx, baseY, tree.height, tree.width, tree.seed, sway, alpha); break;
+        case 'birch': drawBirchTree(tx, baseY, tree.height, tree.width, tree.seed, sway, alpha); break;
+        case 'willow': drawWillowTree(tx, baseY, tree.height, tree.width, tree.seed, sway, alpha); break;
+        default: drawDeciduousTree(tx, baseY, tree.height, tree.width, tree.seed, sway, alpha);
+      }
+    }
+
+    /* ─────────────────────────────────────────────
+       Создание нового огонька в случайной точке озера
+       ───────────────────────────────────────────── */
     function spawnLight() {
       const margin = 60;
+      const lakeTop = canvas.height * 0.38;
+      const lakeBottom = canvas.height - margin;
+
       lights.push({
         x: margin + Math.random() * (canvas.width - margin * 2),
-        y: canvas.height * 0.48 + Math.random() * (canvas.height * 0.38),
+        y: lakeTop + Math.random() * (lakeBottom - lakeTop),
+        radius: 6 + Math.random() * 4,
         pulse: Math.random() * Math.PI * 2,
-        glow: 0.6 + Math.random() * 0.4,
+        pulseSpeed: 0.02 + Math.random() * 0.015,
+        // частицы при сборе
+        collected: false,
       });
     }
 
-    // ── Заполнить озеро огоньками ──
-    function fillLights() {
+    /* ─────────────────────────────────────────────
+       Начальная расстановка огоньков
+       ───────────────────────────────────────────── */
+    function initLights() {
       lights = [];
-      for (let i = 0; i < MAX_LIGHTS; i++) spawnLight();
+      for (let i = 0; i < MAX_LIGHTS; i++) {
+        spawnLight();
+      }
     }
 
-    // ── Показать спокойную фразу ──
-    function showPhrase() {
-      phraseEl.textContent = PHRASES[phraseIndex % PHRASES.length];
-      phraseIndex++;
-      phraseEl.classList.add('visible');
-
-      clearTimeout(phraseTimeout);
-      phraseTimeout = setTimeout(() => {
-        phraseEl.classList.remove('visible');
-      }, 5000);
-    }
-
-    // ── Обновить счётчик ──
-    function updateCounter() {
-      counterEl.textContent = `Огоньки: ${score}`;
-    }
-
-    // ── Сброс и начало игры ──
-    function startGame() {
-      gameRunning = true;
+    /* ─────────────────────────────────────────────
+       Сброс счёта и позиции (мир не трогаем)
+       ───────────────────────────────────────────── */
+    function resetGameState() {
       score = 0;
-      phraseIndex = 0;
-      phraseEl.classList.remove('visible');
-      phraseEl.textContent = '';
-      updateCounter();
+      phraseIndex = -1;
+      counterEl.textContent = 'Огоньки: 0';
+      phraseBox.classList.remove('show');
+      phraseBox.textContent = '';
+      clearTimeout(phraseTimeout);
 
       boat.x = canvas.width / 2;
       boat.y = canvas.height * 0.65;
       boat.angle = -Math.PI / 2;
-      boat.speed = 0;
-      input.x = 0;
-      input.y = 0;
+      boat.moving = false;
       touchTarget = null;
+      initLights();
+    }
 
-      fillLights();
+    /* ─────────────────────────────────────────────
+       Полная перезагрузка мира (resize / «Начать заново»)
+       ───────────────────────────────────────────── */
+    function rebuildWorld() {
+      if (canvas.width < 1 || canvas.height < 1) return;
+      initStars();
+      initPetals();
+      initShoreLights();
+      initTrees();
+      initWaterSparkles();
+      buildShoreProfile();
+    }
 
-      startScreen.classList.add('hidden');
+    function resetGame() {
+      resetGameState();
+      rebuildWorld();
+    }
+
+    /* ─────────────────────────────────────────────
+       Фоновая музыка (Web Audio API, без файлов)
+       Мягкие аккорды, арпеджио и шум воды
+       ───────────────────────────────────────────── */
+    const ambientMusic = {
+      ctx: null,
+      master: null,
+      delay: null,
+      feedback: null,
+      filter: null,
+      playing: false,
+      muted: false,
+      chordTimer: null,
+      arpTimer: null,
+      chordIndex: 0,
+
+      // Романтичная прогрессия в ля миноре (частоты нот)
+      chords: [
+        [220.0, 261.63, 329.63, 392.0],   // Am7
+        [174.61, 220.0, 261.63, 329.63], // Fmaj7
+        [146.83, 174.61, 220.0, 261.63], // Dm7
+        [196.0, 246.94, 293.66, 349.23], // Gadd9
+      ],
+
+      init() {
+        if (this.ctx) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AC();
+
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.22;
+
+        this.filter = this.ctx.createBiquadFilter();
+        this.filter.type = 'lowpass';
+        this.filter.frequency.value = 1200;
+        this.filter.Q.value = 0.5;
+
+        this.delay = this.ctx.createDelay(3);
+        this.delay.delayTime.value = 0.75;
+        this.feedback = this.ctx.createGain();
+        this.feedback.gain.value = 0.32;
+
+        this.filter.connect(this.delay);
+        this.delay.connect(this.feedback);
+        this.feedback.connect(this.delay);
+        this.delay.connect(this.master);
+        this.master.connect(this.ctx.destination);
+      },
+
+      // Тихий шум воды
+      startWaterBed() {
+        const bufferSize = 2 * this.ctx.sampleRate;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * 0.08;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+
+        const noiseFilter = this.ctx.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.value = 400;
+        noiseFilter.Q.value = 0.3;
+
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.value = 0.04;
+
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.master);
+        noise.start();
+        this.noise = noise;
+      },
+
+      playTone(freq, start, duration, volume = 0.06) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(volume, start + 1.2);
+        gain.gain.linearRampToValueAtTime(volume * 0.7, start + duration - 1.5);
+        gain.gain.linearRampToValueAtTime(0, start + duration);
+
+        osc.connect(gain);
+        gain.connect(this.filter);
+        osc.start(start);
+        osc.stop(start + duration + 0.1);
+      },
+
+      playChord() {
+        if (!this.playing || this.muted) return;
+        const now = this.ctx.currentTime;
+        const notes = this.chords[this.chordIndex];
+        notes.forEach((freq, i) => {
+          this.playTone(freq, now + i * 0.15, 9, 0.045);
+        });
+        this.chordIndex = (this.chordIndex + 1) % this.chords.length;
+      },
+
+      playArpeggio() {
+        if (!this.playing || this.muted) return;
+        const notes = this.chords[this.chordIndex];
+        const now = this.ctx.currentTime;
+        notes.forEach((freq, i) => {
+          this.playTone(freq * 2, now + i * 0.55, 2.5, 0.018);
+        });
+      },
+
+      // Мягкий колокольчик при сборе огонька
+      playCollectChime() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.07, now + 0.05 + i * 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+          osc.connect(gain);
+          gain.connect(this.master);
+          osc.start(now + i * 0.05);
+          osc.stop(now + 2);
+        });
+      },
+
+      start() {
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        if (this.playing) return;
+        this.playing = true;
+        this.startWaterBed();
+        this.playChord();
+        this.chordTimer = setInterval(() => this.playChord(), 9000);
+        this.arpTimer = setInterval(() => this.playArpeggio(), 4500);
+      },
+
+      stop() {
+        this.playing = false;
+        clearInterval(this.chordTimer);
+        clearInterval(this.arpTimer);
+        if (this.noise) {
+          try { this.noise.stop(); } catch (_) {}
+        }
+      },
+
+      toggleMute() {
+        this.muted = !this.muted;
+        if (this.master) {
+          this.master.gain.linearRampToValueAtTime(
+            this.muted ? 0 : 0.22,
+            this.ctx.currentTime + 0.5
+          );
+        }
+        musicBtn.classList.toggle('muted', this.muted);
+        musicBtn.textContent = this.muted ? '♪' : '♫';
+      },
+    };
+
+    /* ─────────────────────────────────────────────
+       Показ спокойной фразы
+       ───────────────────────────────────────────── */
+    function showPhrase() {
+      // Случайная фраза без повтора подряд
+      let idx;
+      do {
+        idx = Math.floor(Math.random() * PHRASES.length);
+      } while (PHRASES.length > 1 && idx === phraseIndex);
+      phraseIndex = idx;
+      phraseBox.textContent = PHRASES[idx];
+      phraseBox.classList.remove('show');
+      // принудительный reflow для повторной анимации
+      void phraseBox.offsetWidth;
+      phraseBox.classList.add('show');
+
+      clearTimeout(phraseTimeout);
+      phraseTimeout = setTimeout(() => {
+        phraseBox.classList.remove('show');
+      }, 5000);
+    }
+
+    /* ─────────────────────────────────────────────
+       Старт / перезапуск
+       ───────────────────────────────────────────── */
+    function startGame() {
+      resetGameState(); // берег и лес остаются как на заставке
+      gameRunning = true;
+      startOverlay.classList.add('hidden');
+      hud.classList.add('visible');
       restartBtn.classList.add('visible');
-    }
-
-    // ── Обработка ввода с клавиатуры (стрелки, WASD, русская раскладка) ──
-    function updateKeyboardInput() {
-      let dx = 0;
-      let dy = 0;
-
-      if (keys['ArrowUp']    || keys['w'] || keys['W'] || keys['ц'] || keys['Ц']) dy -= 1;
-      if (keys['ArrowDown']  || keys['s'] || keys['S'] || keys['ы'] || keys['Ы']) dy += 1;
-      if (keys['ArrowLeft']  || keys['a'] || keys['A'] || keys['ф'] || keys['Ф']) dx -= 1;
-      if (keys['ArrowRight'] || keys['d'] || keys['D'] || keys['в'] || keys['В']) dx += 1;
-
-      if (dx !== 0 || dy !== 0) {
-        const len = Math.hypot(dx, dy);
-        input.x = dx / len;
-        input.y = dy / len;
-        touchTarget = null; // клавиатура отменяет касание
-      } else if (!touchTarget) {
-        input.x = 0;
-        input.y = 0;
+      controlsHint.classList.add('visible');
+      musicBtn.classList.add('visible');
+      if (!isTouchDevice()) canvas.classList.add('mouse-nav');
+      try {
+        ambientMusic.start();
+      } catch (err) {
+        console.warn('Музыка недоступна:', err);
       }
     }
 
-    // ── Обновление направления от касания/мыши ──
-    function updateTouchInput() {
-      if (!touchTarget) return;
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', () => {
+      resetGame();
+    });
+    musicBtn.addEventListener('click', () => ambientMusic.toggleMute());
 
-      const dx = touchTarget.x - boat.x;
-      const dy = touchTarget.y - boat.y;
-      const dist = Math.hypot(dx, dy);
-
-      if (dist > 15) {
-        input.x = dx / dist;
-        input.y = dy / dist;
-      } else {
-        input.x = 0;
-        input.y = 0;
-      }
-    }
-
-    // ── Движение лодочки ──
-    function updateBoat() {
-      updateKeyboardInput();
-      updateTouchInput();
-
-      // Плавное ускорение в направлении ввода
-      if (input.x !== 0 || input.y !== 0) {
-        boat.speed += 0.04;
-        if (boat.speed > boat.maxSpeed) boat.speed = boat.maxSpeed;
-        boat.angle = Math.atan2(input.y, input.x) + Math.PI / 2;
-      } else {
-        boat.speed *= boat.friction;
-        if (boat.speed < 0.05) boat.speed = 0;
-      }
-
-      boat.x += Math.sin(boat.angle) * boat.speed;
-      boat.y -= Math.cos(boat.angle) * boat.speed;
-
-      // Мягкие границы озера
-      const padX = 30;
-      const padTop = canvas.height * 0.42;
-      const padBot = canvas.height - 30;
-
-      if (boat.x < padX) { boat.x = padX; boat.speed *= 0.5; }
-      if (boat.x > canvas.width - padX) { boat.x = canvas.width - padX; boat.speed *= 0.5; }
-      if (boat.y < padTop) { boat.y = padTop; boat.speed *= 0.5; }
-      if (boat.y > padBot) { boat.y = padBot; boat.speed *= 0.5; }
-    }
-
-    // ── Проверка сбора огоньков ──
-    function checkCollection() {
-      for (let i = lights.length - 1; i >= 0; i--) {
-        const light = lights[i];
-        const dist = Math.hypot(boat.x - light.x, boat.y - light.y);
-
-        if (dist < COLLECT_DISTANCE) {
-          lights.splice(i, 1);
-          score++;
-          updateCounter();
-          showPhrase();
-          spawnLight(); // сразу появляется новый
-        }
-      }
-    }
-
-    // ══════════════════════════════════════════════
-    //  Отрисовка
-    // ══════════════════════════════════════════════
-
-    // ── Небо и звёзды ──
-    function drawSky() {
-      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.5);
-      grad.addColorStop(0, '#0a1628');
-      grad.addColorStop(0.5, '#0f2847');
-      grad.addColorStop(1, '#143a5c');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.5);
-
-      // Звёзды с мерцанием
-      for (const star of stars) {
-        const alpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(star.twinkle + time * star.speed));
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 220, 255, ${alpha})`;
-        ctx.fill();
-      }
-
-      // Луна
-      const moonX = canvas.width * 0.78;
-      const moonY = canvas.height * 0.12;
-      const moonR = Math.min(canvas.width, canvas.height) * 0.04;
-
-      const moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 4);
-      moonGlow.addColorStop(0, 'rgba(200, 220, 240, 0.15)');
-      moonGlow.addColorStop(1, 'rgba(200, 220, 240, 0)');
-      ctx.fillStyle = moonGlow;
-      ctx.fillRect(moonX - moonR * 4, moonY - moonR * 4, moonR * 8, moonR * 8);
-
-      ctx.beginPath();
-      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
-      ctx.fillStyle = '#d4e8f0';
-      ctx.fill();
-    }
-
-    // ── Вода с волнами ──
-    function drawWater() {
-      const waterTop = canvas.height * 0.38;
-
-      // Градиент воды
-      const waterGrad = ctx.createLinearGradient(0, waterTop, 0, canvas.height);
-      waterGrad.addColorStop(0, '#1a4a6e');
-      waterGrad.addColorStop(0.4, '#1e5a7a');
-      waterGrad.addColorStop(1, '#0d3048');
-      ctx.fillStyle = waterGrad;
-      ctx.fillRect(0, waterTop, canvas.width, canvas.height - waterTop);
-
-      // Анимированные волны
-      for (const wave of waves) {
-        const baseY = canvas.height * wave.y;
-
-        ctx.beginPath();
-        ctx.moveTo(0, baseY);
-
-        for (let x = 0; x <= canvas.width; x += 3) {
-          const y = baseY
-            + Math.sin(x * wave.freq + time * wave.speed) * wave.amp
-            + Math.sin(x * wave.freq * 1.7 + time * wave.speed * 0.7) * wave.amp * 0.4;
-          ctx.lineTo(x, y);
-        }
-
-        ctx.lineTo(canvas.width, canvas.height);
-        ctx.lineTo(0, canvas.height);
-        ctx.closePath();
-
-        ctx.fillStyle = `rgba(40, 120, 150, ${0.08 + wave.amp * 0.01})`;
-        ctx.fill();
-      }
-
-      // Лёгкий блик на воде
-      const shimmer = 0.03 + 0.02 * Math.sin(time * 0.3);
-      ctx.fillStyle = `rgba(100, 200, 220, ${shimmer})`;
-      ctx.fillRect(0, waterTop, canvas.width, canvas.height * 0.15);
-    }
-
-    // ── Светящийся огонёк ──
-    function drawLight(light) {
-      const pulse = 0.7 + 0.3 * Math.sin(light.pulse + time * 2);
-      const r = LIGHT_RADIUS * pulse;
-
-      // Внешнее свечение
-      const glow = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, r * 4);
-      glow.addColorStop(0, `rgba(255, 230, 120, ${0.5 * light.glow})`);
-      glow.addColorStop(0.4, `rgba(255, 200, 80, ${0.15 * light.glow})`);
-      glow.addColorStop(1, 'rgba(255, 200, 80, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(light.x, light.y, r * 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Ядро огонька
-      const core = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, r);
-      core.addColorStop(0, '#fff8d0');
-      core.addColorStop(0.5, '#ffe066');
-      core.addColorStop(1, 'rgba(255, 200, 50, 0)');
-      ctx.fillStyle = core;
-      ctx.beginPath();
-      ctx.arc(light.x, light.y, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Отражение в воде
-      const reflectY = light.y + (canvas.height - light.y) * 0.15;
-      const reflect = ctx.createRadialGradient(light.x, reflectY, 0, light.x, reflectY, r * 2);
-      reflect.addColorStop(0, `rgba(255, 220, 100, ${0.12 * pulse})`);
-      reflect.addColorStop(1, 'rgba(255, 220, 100, 0)');
-      ctx.fillStyle = reflect;
-      ctx.beginPath();
-      ctx.arc(light.x, reflectY, r * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // ── Лодочка ──
-    function drawBoat() {
-      ctx.save();
-      ctx.translate(boat.x, boat.y);
-      // Лёгкое покачивание на волнах
-      ctx.rotate(boat.angle + Math.sin(time * 1.2) * 0.03);
-
-      const w = boat.width;
-      const h = boat.height;
-
-      // Отражение лодки в воде
-      ctx.save();
-      ctx.scale(1, -0.3);
-      ctx.translate(0, h * 3.5);
-      ctx.globalAlpha = 0.12;
-      ctx.fillStyle = '#1a3050';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, w * 0.6, h * 0.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Корпус лодки
-      ctx.beginPath();
-      ctx.moveTo(-w * 0.5, -h * 0.3);
-      ctx.quadraticCurveTo(-w * 0.55, h * 0.5, 0, h * 0.6);
-      ctx.quadraticCurveTo(w * 0.55, h * 0.5, w * 0.5, -h * 0.3);
-      ctx.quadraticCurveTo(0, -h * 0.7, -w * 0.5, -h * 0.3);
-      ctx.closePath();
-
-      const hullGrad = ctx.createLinearGradient(-w, 0, w, 0);
-      hullGrad.addColorStop(0, '#3a6a8a');
-      hullGrad.addColorStop(0.5, '#5a9ab8');
-      hullGrad.addColorStop(1, '#3a6a8a');
-      ctx.fillStyle = hullGrad;
-      ctx.fill();
-
-      // Борт
-      ctx.strokeStyle = 'rgba(150, 210, 230, 0.5)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Маленький фонарик на носу
-      const lanternPulse = 0.6 + 0.4 * Math.sin(time * 1.5);
-      const lanternGlow = ctx.createRadialGradient(0, -h * 0.5, 0, 0, -h * 0.5, 8);
-      lanternGlow.addColorStop(0, `rgba(255, 230, 150, ${0.6 * lanternPulse})`);
-      lanternGlow.addColorStop(1, 'rgba(255, 230, 150, 0)');
-      ctx.fillStyle = lanternGlow;
-      ctx.beginPath();
-      ctx.arc(0, -h * 0.5, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(0, -h * 0.5, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffe8a0';
-      ctx.fill();
-
-      ctx.restore();
-    }
-
-    // ── Дальние силуэты берега ──
-    function drawShore() {
-      const shoreY = canvas.height * 0.36;
-
-      ctx.beginPath();
-      ctx.moveTo(0, shoreY);
-      for (let x = 0; x <= canvas.width; x += 40) {
-        const h = Math.sin(x * 0.005 + 1) * 15 + Math.sin(x * 0.012) * 8;
-        ctx.lineTo(x, shoreY - h);
-      }
-      ctx.lineTo(canvas.width, shoreY + 30);
-      ctx.lineTo(0, shoreY + 30);
-      ctx.closePath();
-
-      const shoreGrad = ctx.createLinearGradient(0, shoreY - 30, 0, shoreY + 30);
-      shoreGrad.addColorStop(0, '#0c2035');
-      shoreGrad.addColorStop(1, '#1a4a6e');
-      ctx.fillStyle = shoreGrad;
-      ctx.fill();
-
-      // Силуэты деревьев
-      for (let x = 60; x < canvas.width; x += 80 + Math.sin(x) * 30) {
-        const treeH = 20 + Math.sin(x * 0.03) * 12;
-        const treeY = shoreY - Math.sin(x * 0.005 + 1) * 15;
-        ctx.beginPath();
-        ctx.moveTo(x, treeY);
-        ctx.lineTo(x - 8, treeY - treeH);
-        ctx.lineTo(x + 8, treeY - treeH);
-        ctx.closePath();
-        ctx.fillStyle = '#0a1a2a';
-        ctx.fill();
-      }
-    }
-
-    // ── Главный цикл отрисовки ──
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      drawSky();
-      drawShore();
-      drawWater();
-
-      // Огоньки (под лодкой по глубине, но мы рисуем до лодки)
-      for (const light of lights) drawLight(light);
-
-      if (gameRunning) drawBoat();
-    }
-
-    // ── Игровой цикл ──
-    function gameLoop() {
-      time += 0.016;
-
-      if (gameRunning) {
-        updateBoat();
-        checkCollection();
-      }
-
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
-
-    // ══════════════════════════════════════════════
-    //  События
-    // ══════════════════════════════════════════════
-
-    // Клавиатура
+    /* ─────────────────────────────────────────────
+       Управление: клавиатура
+       ───────────────────────────────────────────── */
     window.addEventListener('keydown', (e) => {
-      keys[e.key] = true;
-      // Предотвращаем прокрутку стрелками
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      keys[e.code] = true;
+      // предотвращаем прокрутку стрелками
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
         e.preventDefault();
       }
     });
 
     window.addEventListener('keyup', (e) => {
-      keys[e.key] = false;
+      keys[e.code] = false;
     });
 
-    // Касание и мышь — плыть к точке
-    function setTouchTarget(clientX, clientY) {
+    /* ─────────────────────────────────────────────
+       Управление: мышь (веб) и касание (мобильные)
+       ───────────────────────────────────────────── */
+    function clientToCanvas(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
-      touchTarget = {
-        x: clientX - rect.left,
-        y: clientY - rect.top,
+      return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height),
       };
     }
 
-    canvas.addEventListener('mousedown', (e) => {
+    function setMoveTarget(clientX, clientY) {
       if (!gameRunning) return;
-      setTouchTarget(e.clientX, e.clientY);
-    });
+      const pt = clientToCanvas(clientX, clientY);
+      // только по воде
+      if (pt.y >= getWaterTop()) {
+        touchTarget = pt;
+      }
+    }
 
-    canvas.addEventListener('mousemove', (e) => {
-      if (!gameRunning || e.buttons !== 1) return;
-      setTouchTarget(e.clientX, e.clientY);
-    });
-
-    canvas.addEventListener('mouseup', () => {
-      // Оставляем цель — лодка доплывёт и остановится
-    });
-
+    // Мобильные: касание воды
     canvas.addEventListener('touchstart', (e) => {
-      if (!gameRunning) return;
+      if (!gameRunning || !isTouchDevice()) return;
       e.preventDefault();
       const touch = e.touches[0];
-      setTouchTarget(touch.clientX, touch.clientY);
+      setMoveTarget(touch.clientX, touch.clientY);
     }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
-      if (!gameRunning) return;
+      if (!gameRunning || !isTouchDevice()) return;
       e.preventDefault();
       const touch = e.touches[0];
-      setTouchTarget(touch.clientX, touch.clientY);
+      setMoveTarget(touch.clientX, touch.clientY);
     }, { passive: false });
 
-    canvas.addEventListener('touchend', () => {
-      touchTarget = null;
-      if (!keys['ArrowUp'] && !keys['ArrowDown'] && !keys['ArrowLeft'] && !keys['ArrowRight']
-          && !keys['w'] && !keys['a'] && !keys['s'] && !keys['d']) {
-        input.x = 0;
-        input.y = 0;
-      }
+    // Десктоп: мышь по воде
+    canvas.addEventListener('mousedown', (e) => {
+      if (!gameRunning || isTouchDevice() || e.button !== 0) return;
+      setMoveTarget(e.clientX, e.clientY);
     });
 
-    // Кнопки
-    startBtn.addEventListener('click', startGame);
-    restartBtn.addEventListener('click', startGame);
+    canvas.addEventListener('mousemove', (e) => {
+      if (!gameRunning || isTouchDevice() || !(e.buttons & 1)) return;
+      setMoveTarget(e.clientX, e.clientY);
+    });
 
-    // Изменение размера окна
-    window.addEventListener('resize', resize);
+    /* ─────────────────────────────────────────────
+       Обновление лодочки (медленное, плавное движение)
+       ───────────────────────────────────────────── */
+    function updateBoat() {
+      let inputX = 0;
+      let inputY = 0;
 
-    // ── Запуск ──
-    resize();
-    gameLoop();
+      // WASD и стрелки
+      if (keys['ArrowUp'] || keys['KeyW']) inputY -= 1;
+      if (keys['ArrowDown'] || keys['KeyS']) inputY += 1;
+      if (keys['ArrowLeft'] || keys['KeyA']) inputX -= 1;
+      if (keys['ArrowRight'] || keys['KeyD']) inputX += 1;
+
+      // Мышь / касание: движение к точке на воде
+      if (touchTarget) {
+        const dx = touchTarget.x - boat.x;
+        const dy = touchTarget.y - boat.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 10) {
+          inputX += dx / dist;
+          inputY += dy / dist;
+        } else {
+          touchTarget = null;
+        }
+      }
+
+      const inputLen = Math.hypot(inputX, inputY);
+
+      if (inputLen > 0.001) {
+        // Нормализуем, чтобы диагональ не была быстрее
+        inputX /= inputLen;
+        inputY /= inputLen;
+
+        // Плавный поворот носа лодки
+        const targetAngle = Math.atan2(inputY, inputX);
+        let diff = targetAngle - boat.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        boat.angle += diff * 0.06;
+
+        // Медленное перемещение
+        boat.x += inputX * boat.maxSpeed;
+        boat.y += inputY * boat.maxSpeed;
+        boat.moving = true;
+      } else {
+        boat.moving = false;
+      }
+
+      // Ограничение границами озера
+      const marginX = 30;
+      const lakeTop = canvas.height * 0.38;
+      const lakeBottom = canvas.height - 20;
+      boat.x = Math.max(marginX, Math.min(canvas.width - marginX, boat.x));
+      boat.y = Math.max(lakeTop, Math.min(lakeBottom, boat.y));
+    }
+
+    /* ─────────────────────────────────────────────
+       Проверка сбора огоньков
+       ───────────────────────────────────────────── */
+    function checkCollisions() {
+      for (let i = lights.length - 1; i >= 0; i--) {
+        const light = lights[i];
+        const dist = Math.hypot(light.x - boat.x, light.y - boat.y);
+        if (dist < COLLECT_RADIUS + light.radius) {
+          lights.splice(i, 1);
+          score++;
+          counterEl.textContent = `Огоньки: ${score}`;
+          showPhrase();
+          ambientMusic.playCollectChime();
+          spawnLight();
+        }
+      }
+    }
+
+    /* ─────────────────────────────────────────────
+       Отрисовка неба — романтичная лунная ночь
+       ───────────────────────────────────────────── */
+    function drawSky() {
+      const h = canvas.height * 0.52;
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#080818');
+      grad.addColorStop(0.25, '#121030');
+      grad.addColorStop(0.55, '#1a1848');
+      grad.addColorStop(0.85, '#1e2858');
+      grad.addColorStop(1, '#243060');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, h);
+
+      // Мягкое северное сияние
+      drawAurora();
+
+      // Лес и берег (до луны — луна поверх дальних деревьев)
+      drawShoreAndForest();
+
+      // Луна с романтичным ореолом
+      const moonX = canvas.width * MOON_X_RATIO;
+      const moonY = canvas.height * 0.13;
+      const moonR = Math.min(canvas.width, canvas.height) * 0.048;
+
+      const outerGlow = ctx.createRadialGradient(moonX, moonY, moonR * 0.5, moonX, moonY, moonR * 8);
+      outerGlow.addColorStop(0, 'rgba(240, 210, 230, 0.18)');
+      outerGlow.addColorStop(0.4, 'rgba(180, 200, 240, 0.08)');
+      outerGlow.addColorStop(1, 'rgba(180, 200, 240, 0)');
+      ctx.fillStyle = outerGlow;
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, moonR * 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      const moonGrad = ctx.createRadialGradient(moonX - moonR * 0.3, moonY - moonR * 0.3, 0, moonX, moonY, moonR);
+      moonGrad.addColorStop(0, '#faf0f8');
+      moonGrad.addColorStop(0.7, '#e8dce8');
+      moonGrad.addColorStop(1, '#c8c0d8');
+      ctx.fillStyle = moonGrad;
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Лёгкие кратеры
+      ctx.fillStyle = 'rgba(180, 170, 190, 0.15)';
+      ctx.beginPath();
+      ctx.arc(moonX - moonR * 0.2, moonY + moonR * 0.15, moonR * 0.18, 0, Math.PI * 2);
+      ctx.arc(moonX + moonR * 0.25, moonY - moonR * 0.1, moonR * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Звёзды (тёплые и холодные)
+      for (const star of stars) {
+        const alpha = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(star.twinkle + time * star.speed));
+        if (star.tint === 'warm') {
+          ctx.fillStyle = `rgba(255, 230, 210, ${alpha})`;
+        } else {
+          ctx.fillStyle = `rgba(210, 225, 255, ${alpha})`;
+        }
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        ctx.fill();
+        // редкие звёзды с лучиками
+        if (star.radius > 1.2) {
+          ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(star.x - 4, star.y);
+          ctx.lineTo(star.x + 4, star.y);
+          ctx.moveTo(star.x, star.y - 4);
+          ctx.lineTo(star.x, star.y + 4);
+          ctx.stroke();
+        }
+      }
+
+      // Огни на берегу
+      for (const light of shoreLights) {
+        const flick = 0.6 + 0.4 * Math.sin(light.flicker + time * 2);
+        const g = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius * 6);
+        g.addColorStop(0, `rgba(255, 210, 150, ${0.5 * flick})`);
+        g.addColorStop(1, 'rgba(255, 210, 150, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(light.x, light.y, light.radius * 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(255, 230, 180, ${flick})`;
+        ctx.beginPath();
+        ctx.arc(light.x, light.y, light.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    /* ── Северное сияние ── */
+    function drawAurora() {
+      const auroraY = canvas.height * 0.08;
+      for (let band = 0; band < 3; band++) {
+        ctx.beginPath();
+        for (let x = 0; x <= canvas.width; x += 8) {
+          const y = auroraY + band * 25
+            + Math.sin(x * 0.004 + time * 0.08 + band) * 20
+            + Math.sin(x * 0.009 + time * 0.12) * 10;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.lineTo(canvas.width, canvas.height * 0.35);
+        ctx.lineTo(0, canvas.height * 0.35);
+        ctx.closePath();
+        const colors = [
+          'rgba(100, 200, 180, 0.04)',
+          'rgba(180, 120, 200, 0.05)',
+          'rgba(120, 160, 220, 0.04)',
+        ];
+        ctx.fillStyle = colors[band];
+        ctx.fill();
+      }
+    }
+
+    /* ── Холмы, берег, лес ── */
+    function drawShoreAndForest() {
+      const waterTop = getWaterTop();
+
+      // Дальние холмы
+      ctx.fillStyle = '#0c1020';
+      ctx.beginPath();
+      ctx.moveTo(0, getHorizonY() + 30);
+      for (let x = 0; x <= canvas.width; x += 8) {
+        const y = getHorizonY() + 10 + Math.sin(x * 0.003) * 18 + Math.sin(x * 0.008 + 1) * 10;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(canvas.width, waterTop + 40);
+      ctx.lineTo(0, waterTop + 40);
+      ctx.closePath();
+      ctx.fill();
+
+      // Ближний берег (земля)
+      ctx.fillStyle = '#0a0e18';
+      ctx.beginPath();
+      ctx.moveTo(0, shoreProfile[0]?.y ?? getHorizonY());
+      for (const pt of shoreProfile) ctx.lineTo(pt.x, pt.y);
+      ctx.lineTo(canvas.width, waterTop + 25);
+      ctx.lineTo(0, waterTop + 25);
+      ctx.closePath();
+      ctx.fill();
+
+      // Трава и камыши у кромки воды
+      drawShoreVegetation();
+
+      // Лес (от дальних к ближним)
+      for (const tree of trees) drawSingleTree(tree);
+
+      // Туман у воды
+      const mistGrad = ctx.createLinearGradient(0, getHorizonY() - 10, 0, waterTop + 30);
+      mistGrad.addColorStop(0, 'rgba(30, 40, 70, 0)');
+      mistGrad.addColorStop(0.5, 'rgba(20, 35, 60, 0.15)');
+      mistGrad.addColorStop(1, 'rgba(15, 30, 50, 0.25)');
+      ctx.fillStyle = mistGrad;
+      ctx.fillRect(0, getHorizonY() - 20, canvas.width, waterTop + 35 - getHorizonY());
+    }
+
+    /* ── Трава и камыши на берегу ── */
+    function drawShoreVegetation() {
+      ctx.lineCap = 'round';
+      for (let x = 0; x < canvas.width; x += 12) {
+        const baseY = shoreYAt(x);
+        const hash = Math.sin(x * 0.47) * Math.sin(x * 0.19);
+
+        // камыши
+        if (hash > 0.55) {
+          const h = 10 + Math.abs(Math.sin(x * 0.31)) * 18;
+          const sway = Math.sin(time * 0.5 + x * 0.05) * 2;
+          ctx.strokeStyle = `rgba(${18 + hash * 8}, ${38 + hash * 12}, ${28 + hash * 6}, 0.7)`;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(x, baseY);
+          ctx.quadraticCurveTo(x + sway, baseY - h * 0.5, x + sway * 1.5, baseY - h);
+          ctx.stroke();
+          // метёлка камыша
+          ctx.fillStyle = 'rgba(60, 55, 40, 0.5)';
+          ctx.beginPath();
+          ctx.ellipse(x + sway * 1.5, baseY - h, 2, 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // трава
+        if (hash > -0.2 && hash < 0.7) {
+          const gh = 4 + Math.abs(Math.sin(x * 0.73)) * 8;
+          const gs = Math.sin(time * 0.6 + x * 0.08) * 1.5;
+          ctx.strokeStyle = 'rgba(16, 32, 22, 0.55)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(x, baseY);
+          ctx.lineTo(x + gs, baseY - gh);
+          ctx.stroke();
+        }
+      }
+    }
+
+    /* ── Высота волны в точке x (для бликов и отражений) ── */
+    function waveSurfaceY(x, t, surfaceOffset) {
+      const wt = getWaterTop() + (surfaceOffset || 0);
+      return wt
+        + Math.sin(x * 0.008 + t * 0.9) * 3.5
+        + Math.sin(x * 0.019 + t * 1.3) * 1.8
+        + Math.sin(x * 0.004 + t * 0.55) * 5
+        + Math.sin(x * 0.035 + t * 1.8) * 0.9;
+    }
+
+    /* ─────────────────────────────────────────────
+       Отрисовка воды — реалистичное озеро
+       ───────────────────────────────────────────── */
+    function drawWater() {
+      const waterTop = getWaterTop();
+      const moonX = canvas.width * MOON_X_RATIO;
+      const waterH = canvas.height - waterTop;
+
+      // ── 1. Глубина: мелководье у берега, глубина к центру ──
+      ctx.fillStyle = '#081420';
+      ctx.fillRect(0, waterTop, canvas.width, waterH);
+
+      // Градиент глубины (сверху мельче — чуть светлее/зеленее)
+      const depthGrad = ctx.createLinearGradient(0, waterTop, 0, canvas.height);
+      depthGrad.addColorStop(0, 'rgba(30, 70, 80, 0.55)');
+      depthGrad.addColorStop(0.15, 'rgba(20, 55, 75, 0.45)');
+      depthGrad.addColorStop(0.5, 'rgba(10, 35, 58, 0.5)');
+      depthGrad.addColorStop(1, 'rgba(4, 15, 30, 0.65)');
+      ctx.fillStyle = depthGrad;
+      ctx.fillRect(0, waterTop, canvas.width, waterH);
+
+      // Боковой градиент глубины (центр озера глубже)
+      const centerDepth = ctx.createRadialGradient(
+        canvas.width * 0.5, canvas.height * 0.7, 0,
+        canvas.width * 0.5, canvas.height * 0.7, canvas.width * 0.65
+      );
+      centerDepth.addColorStop(0, 'rgba(5, 20, 40, 0.35)');
+      centerDepth.addColorStop(1, 'rgba(5, 20, 40, 0)');
+      ctx.fillStyle = centerDepth;
+      ctx.fillRect(0, waterTop, canvas.width, waterH);
+
+      // ── 2. Отражение леса и неба (искажённое волнами) ──
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, waterTop, canvas.width, waterH);
+      ctx.clip();
+
+      // Отражение неба
+      const skyReflect = ctx.createLinearGradient(0, waterTop, 0, waterTop + waterH * 0.45);
+      skyReflect.addColorStop(0, 'rgba(18, 28, 55, 0.35)');
+      skyReflect.addColorStop(1, 'rgba(8, 15, 30, 0)');
+      ctx.fillStyle = skyReflect;
+      ctx.fillRect(0, waterTop, canvas.width, waterH * 0.45);
+
+      // Зеркальное отражение леса (упрощённые силуэты — быстрее, чем полные деревья)
+      ctx.globalAlpha = 0.1;
+      for (const tree of trees) {
+        const distort = Math.sin(time * 0.7 + tree.seed) * 3;
+        const rx = tree.x + distort;
+        const reflectTop = waterTop + 10 + (tree.baseY - waterTop) * 0.35;
+        const rw = tree.width * 0.55;
+        const rh = tree.height * 0.35;
+        const rg = ctx.createRadialGradient(rx, reflectTop + rh * 0.3, 0, rx, reflectTop + rh * 0.3, rw);
+        rg.addColorStop(0, `rgba(14, 26, 22, ${0.35 + tree.depth * 0.25})`);
+        rg.addColorStop(1, 'rgba(8, 14, 12, 0)');
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.ellipse(rx, reflectTop + rh * 0.4, rw, rh * 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // ── 3. Лунная дорожка с волновым искажением ──
+      for (let stripe = 0; stripe < 18; stripe++) {
+        const baseSy = waterTop + 12 + stripe * (waterH * 0.045);
+        const sw = Math.max(4, 32 - stripe * 1.3);
+        const waveOff = Math.sin(time * 0.03 + stripe * 0.4) * 3;
+        const alpha = Math.max(0, 0.16 - stripe * 0.007 + Math.sin(time * 0.035 + stripe) * 0.025);
+
+        ctx.beginPath();
+        for (let dx = -sw; dx <= sw; dx += 2) {
+          const px = moonX + dx;
+          const py = baseSy + waveOff + Math.sin(px * 0.04 + time * 0.8) * 2 + stripe * 0.3;
+          if (dx === -sw) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        for (let dx = sw; dx >= -sw; dx -= 2) {
+          const px = moonX + dx;
+          const py = baseSy + 14 + waveOff + Math.sin(px * 0.04 + time * 0.8 + 1) * 2;
+          ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = `rgba(220, 215, 245, ${alpha})`;
+        ctx.fill();
+      }
+
+      // ── 4. Объёмные волны (слои с разной скоростью) ──
+      const waveColors = [
+        { color: 'rgba(70, 140, 160, 0.09)', off: 0, amp: 1 },
+        { color: 'rgba(55, 120, 150, 0.07)', off: 8, amp: 1.2 },
+        { color: 'rgba(90, 130, 170, 0.06)', off: 18, amp: 0.9 },
+        { color: 'rgba(40, 100, 130, 0.08)', off: 30, amp: 1.4 },
+        { color: 'rgba(110, 150, 180, 0.05)', off: 45, amp: 0.7 },
+      ];
+
+      for (let layer = 0; layer < WAVE_LAYERS; layer++) {
+        const cfg = waveColors[layer];
+        const yBase = waterTop + cfg.off;
+        const phase = time * (0.01 + layer * 0.003);
+
+        ctx.beginPath();
+        ctx.moveTo(0, yBase);
+        for (let x = 0; x <= canvas.width; x += 3) {
+          const y = waveSurfaceY(x, phase, cfg.off);
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.lineTo(0, canvas.height);
+        ctx.closePath();
+        ctx.fillStyle = cfg.color;
+        ctx.fill();
+      }
+
+      // ── 5. Блики на гребнях волн (specular от луны) ──
+      ctx.globalCompositeOperation = 'lighter';
+      for (let x = 0; x < canvas.width; x += 14) {
+        for (let surf = 0; surf < 2; surf++) {
+          const off = surf * 22;
+          const wy = waveSurfaceY(x, time * 0.015, off);
+          const wyPrev = waveSurfaceY(x - 3, time * 0.015, off);
+          const wyNext = waveSurfaceY(x + 3, time * 0.015, off);
+          const slope = (wyNext - wyPrev) / 6;
+
+          // блик там, где склон обращён к луне
+          const moonDir = (moonX - x) / canvas.width;
+          if (Math.abs(slope) > 0.15 && moonDir * slope > 0) {
+            const specAlpha = Math.min(0.12, Math.abs(slope) * 0.08)
+              * (0.5 + 0.5 * Math.sin(time * 0.5 + x * 0.02));
+            ctx.fillStyle = `rgba(200, 220, 255, ${specAlpha})`;
+            ctx.beginPath();
+            ctx.ellipse(x, wy - 1, 3 + Math.abs(slope) * 8, 1.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+
+      // ── 6. Мелководный просвет у берега ──
+      const shallowGrad = ctx.createLinearGradient(0, waterTop, 0, waterTop + 45);
+      shallowGrad.addColorStop(0, 'rgba(45, 90, 85, 0.2)');
+      shallowGrad.addColorStop(0.6, 'rgba(30, 70, 75, 0.08)');
+      shallowGrad.addColorStop(1, 'rgba(30, 70, 75, 0)');
+      ctx.fillStyle = shallowGrad;
+      ctx.fillRect(0, waterTop, canvas.width, 50);
+
+      // ── 7. Рябь и мелкие волны ──
+      for (let i = 0; i < 14; i++) {
+        const rippleY = waterTop + 20 + i * ((waterH - 40) / 14);
+        const alpha = 0.02 + (i % 3) * 0.008;
+        ctx.strokeStyle = `rgba(130, 190, 210, ${alpha})`;
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        for (let x = 0; x <= canvas.width; x += 4) {
+          const y = rippleY
+            + Math.sin(x * 0.018 + time * 0.02 + i * 0.9) * 1.8
+            + Math.sin(x * 0.042 + time * 0.035 + i) * 0.8;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      // ── 8. Мерцающие блики на поверхности ──
+      for (const sp of waterSparkles) {
+        const sy = waveSurfaceY(sp.x, time * 0.02, sp.y - waterTop);
+        const flicker = 0.3 + 0.7 * Math.max(0, Math.sin(sp.phase + time * sp.speed));
+        if (flicker > 0.6) {
+          ctx.fillStyle = `rgba(220, 235, 255, ${(flicker - 0.6) * 0.35})`;
+          ctx.beginPath();
+          ctx.arc(sp.x, sy, sp.size * flicker, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // ── 8b. Отражения огоньков на поверхности ──
+      for (const light of lights) {
+        const pulse = 0.65 + 0.35 * Math.sin(light.pulse);
+        const r = light.radius * pulse;
+        const reflectY = waveSurfaceY(light.x, time * 0.015, 18) + 14;
+        const rg = ctx.createRadialGradient(light.x, reflectY, 0, light.x, reflectY, r * 2.2);
+        rg.addColorStop(0, 'rgba(255, 210, 160, 0.12)');
+        rg.addColorStop(0.5, 'rgba(255, 190, 140, 0.05)');
+        rg.addColorStop(1, 'rgba(255, 190, 140, 0)');
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.ellipse(light.x, reflectY, r * 1.5, r * 0.28, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // ── 9. Кромка воды (пена у берега) ──
+      ctx.strokeStyle = 'rgba(160, 200, 210, 0.12)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let x = 0; x <= canvas.width; x += 3) {
+        const y = waveSurfaceY(x, time * 0.012, 0);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    /* ── Лепестки на ветру ── */
+    function drawPetals() {
+      for (const p of petals) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.hue;
+        ctx.beginPath();
+        ctx.moveTo(0, -p.size);
+        ctx.bezierCurveTo(p.size * 0.8, -p.size * 0.5, p.size * 0.8, p.size * 0.5, 0, p.size);
+        ctx.bezierCurveTo(-p.size * 0.8, p.size * 0.5, -p.size * 0.8, -p.size * 0.5, 0, -p.size);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    /* ─────────────────────────────────────────────
+       Отрисовка огонька — золотисто-розовое свечение
+       ───────────────────────────────────────────── */
+    function drawLight(light) {
+      const pulse = 0.65 + 0.35 * Math.sin(light.pulse);
+      light.pulse += light.pulseSpeed;
+      const r = light.radius * pulse;
+
+      // Внешнее розово-золотое свечение
+      const glow = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, r * 6);
+      glow.addColorStop(0, 'rgba(255, 230, 180, 0.75)');
+      glow.addColorStop(0.25, 'rgba(255, 190, 140, 0.3)');
+      glow.addColorStop(0.5, 'rgba(240, 160, 200, 0.12)');
+      glow.addColorStop(1, 'rgba(240, 160, 200, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(light.x, light.y, r * 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ядро
+      const core = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, r);
+      core.addColorStop(0, '#fffce8');
+      core.addColorStop(0.4, '#ffe8a0');
+      core.addColorStop(0.8, '#ffc870');
+      core.addColorStop(1, 'rgba(255, 180, 120, 0.2)');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(light.x, light.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    /* ─────────────────────────────────────────────
+       Отрисовка лодочки — вид сверху, гребная лодка
+       ───────────────────────────────────────────── */
+    function drawBoat() {
+      ctx.save();
+      ctx.translate(boat.x, boat.y);
+      ctx.rotate(boat.angle + Math.PI / 2);
+
+      const rock = Math.sin(time * 0.035) * 0.03;
+      ctx.rotate(rock);
+
+      const L = boat.length;
+      const W = boat.width;
+      const oarSwing = boat.moving ? Math.sin(time * 0.15) * 0.25 : 0.05;
+
+      // Отражение на воде
+      ctx.fillStyle = 'rgba(20, 40, 70, 0.18)';
+      ctx.beginPath();
+      ctx.ellipse(2, 10, L * 0.4, W * 0.38, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ── Весла (рисуем под корпусом) ──
+      function drawOar(side) {
+        const sx = side * (W * 0.62);
+        ctx.save();
+        ctx.translate(sx, L * 0.05);
+        ctx.rotate(side * oarSwing);
+        ctx.strokeStyle = '#c8a878';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(side * 22, 8);
+        ctx.stroke();
+        // лопасть
+        ctx.fillStyle = '#a08050';
+        ctx.beginPath();
+        ctx.ellipse(side * 24, 9, 4, 7, side * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      drawOar(-1);
+      drawOar(1);
+
+      // ── Корпус лодки (заострённый нос, широкая середина, плоская корма) ──
+      ctx.beginPath();
+      ctx.moveTo(0, -L * 0.5);                          // нос
+      ctx.bezierCurveTo(W * 0.22, -L * 0.42, W * 0.58, -L * 0.28, W * 0.55, -L * 0.05);
+      ctx.bezierCurveTo(W * 0.58, L * 0.18, W * 0.52, L * 0.32, W * 0.35, L * 0.42);
+      ctx.lineTo(W * 0.28, L * 0.46);                   // корма (плоская)
+      ctx.lineTo(-W * 0.28, L * 0.46);
+      ctx.bezierCurveTo(-W * 0.52, L * 0.32, -W * 0.58, L * 0.18, -W * 0.55, -L * 0.05);
+      ctx.bezierCurveTo(-W * 0.58, -L * 0.28, -W * 0.22, -L * 0.42, 0, -L * 0.5);
+      ctx.closePath();
+
+      const hullGrad = ctx.createLinearGradient(-W * 0.5, 0, W * 0.5, 0);
+      hullGrad.addColorStop(0, '#5a3820');
+      hullGrad.addColorStop(0.15, '#7a5030');
+      hullGrad.addColorStop(0.4, '#9a6840');
+      hullGrad.addColorStop(0.6, '#8a5838');
+      hullGrad.addColorStop(0.85, '#6a4028');
+      hullGrad.addColorStop(1, '#4a2818');
+      ctx.fillStyle = hullGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#3a2010';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+
+      // Борт (светлая кромка)
+      ctx.strokeStyle = 'rgba(180, 140, 90, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // ── Внутренняя часть (полость) ──
+      ctx.beginPath();
+      ctx.moveTo(0, -L * 0.38);
+      ctx.bezierCurveTo(W * 0.18, -L * 0.32, W * 0.38, -L * 0.15, W * 0.36, L * 0.05);
+      ctx.bezierCurveTo(W * 0.34, L * 0.22, W * 0.22, L * 0.34, 0, L * 0.36);
+      ctx.bezierCurveTo(-W * 0.22, L * 0.34, -W * 0.34, L * 0.22, -W * 0.36, L * 0.05);
+      ctx.bezierCurveTo(-W * 0.38, -L * 0.15, -W * 0.18, -L * 0.32, 0, -L * 0.38);
+      ctx.closePath();
+      ctx.fillStyle = '#3a2818';
+      ctx.fill();
+
+      // ── Поперечные скамейки ──
+      ctx.fillStyle = '#6a4830';
+      ctx.strokeStyle = '#4a3020';
+      ctx.lineWidth = 0.8;
+      for (const seatY of [-L * 0.12, L * 0.18]) {
+        ctx.fillRect(-W * 0.28, seatY - 2, W * 0.56, 4);
+        ctx.strokeRect(-W * 0.28, seatY - 2, W * 0.56, 4);
+      }
+
+      // ── Килевой брус (центральная линия дна) ──
+      ctx.strokeStyle = 'rgba(90, 60, 35, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -L * 0.35);
+      ctx.lineTo(0, L * 0.32);
+      ctx.stroke();
+
+      // ── Фонарик на носу ──
+      const lanternY = -L * 0.44;
+      const lanternGlow = ctx.createRadialGradient(0, lanternY, 0, 0, lanternY, 16);
+      lanternGlow.addColorStop(0, 'rgba(255, 220, 170, 0.85)');
+      lanternGlow.addColorStop(0.4, 'rgba(255, 190, 130, 0.3)');
+      lanternGlow.addColorStop(1, 'rgba(255, 190, 130, 0)');
+      ctx.fillStyle = lanternGlow;
+      ctx.beginPath();
+      ctx.arc(0, lanternY, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Стойка фонаря
+      ctx.fillStyle = '#5a4030';
+      ctx.fillRect(-2, lanternY + 1, 4, 5);
+      // Стекло фонаря
+      ctx.fillStyle = '#ffe8b0';
+      ctx.beginPath();
+      ctx.arc(0, lanternY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#8a6840';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    /* ─────────────────────────────────────────────
+       Индикатор цели касания (мягкий круг)
+       ───────────────────────────────────────────── */
+    function drawTouchTarget() {
+      if (!touchTarget) return;
+      ctx.strokeStyle = 'rgba(220, 160, 200, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(touchTarget.x, touchTarget.y, 22 + Math.sin(time * 0.05) * 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(160, 210, 230, 0.15)';
+      ctx.beginPath();
+      ctx.arc(touchTarget.x, touchTarget.y, 14 + Math.sin(time * 0.07) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    /* ── Общая отрисовка сцены ── */
+    function drawScene() {
+      // Страховка: данные берега должны быть готовы и в игре, и на заставке
+      if (shoreProfile.length === 0) buildShoreProfile();
+      if (trees.length === 0) initTrees();
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawSky();
+      drawWater();
+      drawPetals();
+      for (const light of lights) drawLight(light);
+      drawBoat();
+      drawTouchTarget();
+    }
+
+    /* ─────────────────────────────────────────────
+       Единый цикл анимации (заставка + игра)
+       ───────────────────────────────────────────── */
+    function mainLoop(timestamp) {
+      time = timestamp * 0.001;
+
+      try {
+        if (gameRunning) {
+          updateBoat();
+          checkCollisions();
+        }
+        updatePetals();
+        drawScene();
+      } catch (err) {
+        console.error('Ошибка отрисовки:', err);
+      }
+
+      requestAnimationFrame(mainLoop);
+    }
+
+    // Запуск
+    try {
+      rebuildWorld();
+      requestAnimationFrame(mainLoop);
+    } catch (err) {
+      console.error('Ошибка запуска игры:', err);
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<p style="position:fixed;bottom:20px;left:20px;right:20px;color:#ffb4b4;background:#2a1020;padding:12px;border-radius:8px;z-index:99;font-family:sans-serif">Ошибка: '
+          + err.message + '</p>'
+      );
+    }
   </script>
 </body>
 </html>
